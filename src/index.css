@@ -1,0 +1,61 @@
+@import url('https://fonts.googleapis.com/css2?family=Cinzel+Decorative:wght@400;700;900&family=Cinzel:wght@400;500;600;700&family=Inter:wght@300;400;500;600;700&display=swap');
+
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+  :root {
+    color-scheme: dark;
+  }
+
+  html, body, #root {
+    /* Fallbacks in order:
+       1. 100vh (older browsers, includes browser chrome)
+       2. -webkit-fill-available (older Safari, safer than vh)
+       3. 100svh (smallest viewport size - guaranteed to fit regardless of URL bar state) */
+    height: 100vh;
+    height: -webkit-fill-available;
+    height: 100svh;
+    width: 100%;
+    margin: 0;
+    padding: 0;
+    overflow: hidden;
+  }
+
+  body {
+    font-family: 'Inter', system-ui, sans-serif;
+    background: #0A0713;
+    color: #EFE4C4;
+    -webkit-font-smoothing: antialiased;
+    -webkit-tap-highlight-color: transparent;
+    overscroll-behavior: none;
+  }
+
+  html {
+    -webkit-text-size-adjust: 100%;
+  }
+}
+
+@layer utilities {
+  .text-gold-shimmer {
+    background: linear-gradient(90deg, #D4AF37 0%, #F5D573 25%, #FFF3C4 50%, #F5D573 75%, #D4AF37 100%);
+    background-size: 200% 100%;
+    -webkit-background-clip: text;
+    background-clip: text;
+    -webkit-text-fill-color: transparent;
+    animation: shimmer 3s linear infinite;
+  }
+
+  .pt-safe { padding-top: env(safe-area-inset-top); }
+  .pb-safe { padding-bottom: env(safe-area-inset-bottom); }
+
+  .glass-panel {
+    background: linear-gradient(135deg,
+      rgba(63, 42, 92, 0.6) 0%,
+      rgba(22, 16, 41, 0.8) 100%);
+    backdrop-filter: blur(12px);
+    -webkit-backdrop-filter: blur(12px);
+    border: 1px solid rgba(212, 175, 55, 0.25);
+  }
+}

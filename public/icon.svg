@@ -1,0 +1,71 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512">
+  <defs>
+    <linearGradient id="bg" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#3F2A5C"/>
+      <stop offset="60%" stop-color="#161029"/>
+      <stop offset="100%" stop-color="#0A0713"/>
+    </linearGradient>
+    <linearGradient id="gold" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#D4AF37"/>
+      <stop offset="50%" stop-color="#F5D573"/>
+      <stop offset="100%" stop-color="#D4AF37"/>
+    </linearGradient>
+    <radialGradient id="glow" cx="50%" cy="50%" r="50%">
+      <stop offset="0%" stop-color="rgba(245,193,94,0.55)"/>
+      <stop offset="100%" stop-color="rgba(245,193,94,0)"/>
+    </radialGradient>
+  </defs>
+
+  <!-- Background -->
+  <rect width="512" height="512" rx="96" ry="96" fill="url(#bg)"/>
+
+  <!-- Ambient glow -->
+  <circle cx="256" cy="256" r="200" fill="url(#glow)"/>
+
+  <!-- Gold star crest (Sagrada eight-point) -->
+  <g transform="translate(256 256)">
+    <path
+      d="M 0 -160
+         L 34 -34
+         L 160 0
+         L 34 34
+         L 0 160
+         L -34 34
+         L -160 0
+         L -34 -34
+         Z"
+      fill="url(#gold)"
+      stroke="#8B7332"
+      stroke-width="3"
+    />
+    <!-- Inner rotated smaller star for depth -->
+    <path
+      d="M 0 -80
+         L 20 -20
+         L 80 0
+         L 20 20
+         L 0 80
+         L -20 20
+         L -80 0
+         L -20 -20
+         Z"
+      fill="#FFF3C4"
+      opacity="0.6"
+      transform="rotate(45)"
+    />
+    <!-- Center small circle -->
+    <circle r="18" fill="#F5C15E"/>
+  </g>
+
+  <!-- Bottom subtitle -->
+  <text
+    x="256"
+    y="470"
+    text-anchor="middle"
+    font-family="Georgia, serif"
+    font-weight="bold"
+    font-size="46"
+    fill="#D4AF37"
+    letter-spacing="8"
+  >SAGRADA</text>
+</svg>

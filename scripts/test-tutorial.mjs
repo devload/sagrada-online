@@ -1,0 +1,56 @@
+import puppeteer from 'puppeteer'
+const worst = { width: 375, height: 620, deviceScaleFactor: 2, isMobile: true, hasTouch: true }
+const b = await puppeteer.launch({ headless: 'new', defaultViewport: worst })
+const p = await b.newPage()
+await p.setViewport(worst)
+// Fresh state — clear both onboarded + tutorial flags
+await p.goto('https://dh1rtp9d6qdlf.cloudfront.net/?v=tut', { waitUntil: 'networkidle2' })
+await p.evaluate(() => {
+  localStorage.setItem('sagrada.onboarded', '1')
+  localStorage.removeItem('sagrada.gameTutorialSeen')
+})
+await p.reload({ waitUntil: 'networkidle2' })
+await new Promise(r => setTimeout(r, 1500))
+
+// Straight to game
+await p.evaluate(() => [...document.querySelectorAll('button')].find(b => b.textContent.includes('PLAY SOLO')).click())
+await new Promise(r => setTimeout(r, 500))
+await p.evaluate(() => [...document.querySelectorAll('button')].find(b => b.textContent.includes('Sealed')).click())
+await new Promise(r => setTimeout(r, 500))
+await p.evaluate(() => [...document.querySelectorAll('button')].find(b => b.textContent.includes('공용 미션 확인')).click())
+await new Promise(r => setTimeout(r, 500))
+await p.evaluate(() => [...document.querySelectorAll('button')].find(b => b.textContent.includes('Reveal all')).click())
+await new Promise(r => setTimeout(r, 500))
+await p.evaluate(() => [...document.querySelectorAll('button')].find(b => b.textContent.includes('패턴 선택')).click())
+await new Promise(r => setTimeout(r, 600))
+await p.evaluate(() => {
+  const cards = [...document.querySelectorAll('button')].filter(b => /Firmitas|Kaleido|Aurorae|Water/.test(b.textContent))
+  if (cards[0]) cards[0].click()
+})
+await new Promise(r => setTimeout(r, 300))
+await p.evaluate(() => [...document.querySelectorAll('button')].find(b => b.textContent.includes('BEGIN THE WORK')).click())
+await new Promise(r => setTimeout(r, 2000))
+// Tutorial should be open
+await p.screenshot({ path: '/tmp/tutorial-step1.png' })
+// Continue
+await p.evaluate(() => [...document.querySelectorAll('button')].find(b => b.textContent.includes('CONTINUE'))?.click())
+await new Promise(r => setTimeout(r, 500))
+await p.screenshot({ path: '/tmp/tutorial-step2.png' })
+await p.evaluate(() => [...document.querySelectorAll('button')].find(b => b.textContent.includes('CONTINUE'))?.click())
+await new Promise(r => setTimeout(r, 500))
+await p.screenshot({ path: '/tmp/tutorial-step3.png' })
+await p.evaluate(() => [...document.querySelectorAll('button')].find(b => b.textContent.includes('CONTINUE'))?.click())
+await new Promise(r => setTimeout(r, 500))
+await p.screenshot({ path: '/tmp/tutorial-step4.png' })
+await p.evaluate(() => [...document.querySelectorAll('button')].find(b => b.textContent.includes('CONTINUE'))?.click())
+await new Promise(r => setTimeout(r, 500))
+await p.screenshot({ path: '/tmp/tutorial-step5.png' })
+await p.evaluate(() => [...document.querySelectorAll('button')].find(b => b.textContent.includes('CONTINUE'))?.click())
+await new Promise(r => setTimeout(r, 500))
+await p.screenshot({ path: '/tmp/tutorial-step6.png' })
+// Finish
+await p.evaluate(() => [...document.querySelectorAll('button')].find(b => b.textContent.includes('시작하기'))?.click())
+await new Promise(r => setTimeout(r, 800))
+await p.screenshot({ path: '/tmp/tutorial-done.png' })
+await b.close()
+console.log('done')
