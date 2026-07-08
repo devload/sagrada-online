@@ -10,6 +10,41 @@
 
 ---
 
+## 스크린샷
+
+<table>
+  <tr>
+    <td width="33%" align="center">
+      <img src="public/manual/screenshots/07c-private-revealed.png" width="240" alt="Private mission reveal" /><br/>
+      <sub><b>Private Mission Reveal</b><br/>비밀 미션 카드 공개 씬 · Bloom + gold gradient</sub>
+    </td>
+    <td width="33%" align="center">
+      <img src="public/manual/screenshots/08b-waiting-pattern-selected.png" width="240" alt="Pattern selection" /><br/>
+      <sub><b>Pick Your Window</b><br/>4가지 패턴 카드 선택 · 개인 미션 색 힌트 표시</sub>
+    </td>
+    <td width="33%" align="center">
+      <img src="public/manual/screenshots/09b-die-selected-legal-cells.png" width="240" alt="Legal cells highlight" /><br/>
+      <sub><b>Legal Cell Highlighting</b><br/>선택한 주사위의 배치 가능 칸을 실시간 계산</sub>
+    </td>
+  </tr>
+  <tr>
+    <td width="33%" align="center">
+      <img src="public/manual/screenshots/09c-die-placed.png" width="240" alt="Mid-game" /><br/>
+      <sub><b>Mid-game Window</b><br/>스테인드글라스처럼 완성되어 가는 창</sub>
+    </td>
+    <td width="33%" align="center">
+      <img src="public/manual/screenshots/10-objectives-sheet.png" width="240" alt="Objectives overlay" /><br/>
+      <sub><b>Sacred Aims (Objectives)</b><br/>공개/개인 목표 카드 · Bottom sheet 오버레이</sub>
+    </td>
+    <td width="33%" align="center">
+      <img src="public/manual/screenshots/11-tools-sheet.png" width="240" alt="Tool cards" /><br/>
+      <sub><b>The Artisan's Kit (Tools)</b><br/>12종 툴 카드 · Favor 토큰 코스트 표시</sub>
+    </td>
+  </tr>
+</table>
+
+---
+
 ## 기술 스택
 
 | 영역 | 스택 |
