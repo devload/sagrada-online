@@ -106,6 +106,40 @@ describe('canPlace — bypass options', () => {
   })
 })
 
+describe('canPlace — Cork-backed Straightedge (requireNotAdjacent)', () => {
+  it('allows placement in an empty area far from other dice', () => {
+    const w = withDiePlaced(empty(), 0, 0, die('red', 3))
+    const r = canPlace(w, plain, 3, 4, die('blue', 5), { requireNotAdjacent: true })
+    expect(r.ok).toBe(true)
+  })
+  it('rejects orthogonally adjacent placement even if colors/values differ', () => {
+    const w = withDiePlaced(empty(), 0, 0, die('red', 3))
+    const r = canPlace(w, plain, 0, 1, die('blue', 5), { requireNotAdjacent: true })
+    expect(r.ok).toBe(false)
+    if (!r.ok) expect(r.reason).toBe('must-not-be-adjacent')
+  })
+  it('rejects diagonally adjacent placement', () => {
+    const w = withDiePlaced(empty(), 0, 0, die('red', 3))
+    const r = canPlace(w, plain, 1, 1, die('blue', 5), { requireNotAdjacent: true })
+    expect(r.ok).toBe(false)
+    if (!r.ok) expect(r.reason).toBe('must-not-be-adjacent')
+  })
+  it('still enforces pattern color restriction', () => {
+    const patCol: PatternCard = {
+      ...plain,
+      grid: plain.grid.map((row, r) =>
+        row.map((cell, c) =>
+          r === 3 && c === 4 ? { kind: 'color' as const, color: 'blue' as const } : cell
+        )
+      ),
+    }
+    const w = withDiePlaced(empty(), 0, 0, die('red', 3))
+    const r = canPlace(w, patCol, 3, 4, die('red', 5), { requireNotAdjacent: true })
+    expect(r.ok).toBe(false)
+    if (!r.ok) expect(r.reason).toBe('pattern-color')
+  })
+})
+
 describe('isEmpty / legalCells', () => {
   it('isEmpty true for new window', () => {
     expect(isEmpty(empty())).toBe(true)

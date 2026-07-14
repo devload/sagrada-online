@@ -12,7 +12,7 @@ export function MissionStrip() {
   const openOverlay = useUI((s) => s.openOverlay)
   if (!game) return null
 
-  const priv = game.private
+  const privates = game.privates?.length ? game.privates : [game.private]
 
   return (
     <div className="pointer-events-auto w-full border-b border-cathedral-gold/15 bg-cathedral-void/70 backdrop-blur">
@@ -32,12 +32,15 @@ export function MissionStrip() {
           )
         })}
 
-        <PrivateBadge
-          color={priv.color}
-          name={priv.name}
-          pts={priv.score(game.window)}
-          onOpen={() => openOverlay('objectives', `private-${priv.color}`)}
-        />
+        {privates.map((p) => (
+          <PrivateBadge
+            key={p.id}
+            color={p.color}
+            name={p.name}
+            pts={p.score(game.window)}
+            onOpen={() => openOverlay('objectives', `private-${p.color}`)}
+          />
+        ))}
       </div>
     </div>
   )

@@ -19,7 +19,8 @@ export function PrivateRevealScene() {
     if (!setup) rollSetup()
   }, [setup, rollSetup])
 
-  const priv = setup?.private
+  const privates = setup?.privates?.length ? setup.privates : setup?.private ? [setup.private] : []
+  const priv = privates[0]
   if (!priv) {
     return (
       <div className="w-full h-full bg-cathedral-radial flex items-center justify-center text-cathedral-parchment/60 font-serif">
@@ -29,6 +30,9 @@ export function PrivateRevealScene() {
   }
 
   const hex = COLOR_HEX[priv.color]
+  const showSecondary = privates.length > 1
+  const priv2 = privates[1]
+  const hex2 = priv2 ? COLOR_HEX[priv2.color] : hex
 
   return (
     <div className="w-full h-full bg-cathedral-radial overflow-hidden flex flex-col pt-safe pb-safe relative">
@@ -128,6 +132,34 @@ export function PrivateRevealScene() {
             </motion.div>
           )}
         </div>
+
+        {/* Solo mode: show the second private objective side-by-side once revealed */}
+        {showSecondary && revealed && priv2 && (
+          <motion.div
+            initial={{ opacity: 0, y: 12 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ delay: 0.4 }}
+            className="w-full max-w-xs rounded-2xl border border-cathedral-gold/60 p-4 flex items-center gap-3"
+            style={{ background: `linear-gradient(160deg, ${hex2}D9 0%, rgba(22,16,41,0.95) 65%)` }}
+          >
+            <div
+              className="w-12 h-12 rounded-lg border border-white/50 flex items-center justify-center text-2xl font-serif text-white shrink-0"
+              style={{
+                background: hex2,
+                boxShadow: `0 0 18px ${hex2}, inset 0 -4px 8px rgba(0,0,0,0.35)`,
+              }}
+            >
+              ◈
+            </div>
+            <div className="text-left">
+              <div className="text-[9px] tracking-widest text-white/70">SOLO · 2ND PRIVATE</div>
+              <div className="font-display text-lg text-gold-shimmer">{priv2.name}</div>
+              <div className="text-[11px] text-white/90 font-serif">
+                내 <b>{priv2.color}</b> 주사위 값의 합만큼 점수
+              </div>
+            </div>
+          </motion.div>
+        )}
       </div>
 
       <div className="relative z-10 px-6 pb-6">

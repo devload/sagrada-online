@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest'
 import {
+  computeTargetScore,
   countEmptyCells,
   rowColorVariety,
   columnColorVariety,
@@ -7,6 +8,7 @@ import {
   lightShades,
   diagonalsSameColor,
   PRIVATE_OBJECTIVES,
+  pickPrivates,
   score,
 } from './scoring'
 import { ROWS, COLS } from './rules'
@@ -92,11 +94,65 @@ describe('private objective', () => {
 })
 
 describe('score integration', () => {
-  it('subtracts empty cells and adds favors', () => {
+  it('subtracts empty cells and adds favors (standard rules)', () => {
     const w = empty()
     w[0][0] = die('red', 1)
     const report = score(w, [], PRIVATE_OBJECTIVES[0], 4)
     // total = 0 (no publics) + private(red=1) + favors(4) - empties(19)
     expect(report.total).toBe(1 + 4 - 19)
+  })
+
+  it('Solo rules: -3 per empty cell, no favor bonus', () => {
+    const w = empty()
+    w[0][0] = die('red', 1)
+    const report = score(w, [], PRIVATE_OBJECTIVES[0], 4, {
+      emptyCellPenalty: 3,
+      includeFavorBonus: false,
+    })
+    // total = 0 (no publics) + private(red=1) + 0 (no favor bonus) - 19*3
+    expect(report.total).toBe(1 - 19 * 3)
+  })
+
+  it('Solo rules: scores TWO private objectives', () => {
+    const w = empty()
+    w[0][0] = die('red', 3)
+    w[0][2] = die('blue', 5)
+    const ruby = PRIVATE_OBJECTIVES.find((p) => p.color === 'red')!
+    const sapphire = PRIVATE_OBJECTIVES.find((p) => p.color === 'blue')!
+    const report = score(w, [], ruby, 0, {
+      emptyCellPenalty: 3,
+      includeFavorBonus: false,
+      privates: [ruby, sapphire],
+    })
+    // ruby=3 + sapphire=5 - 18*3
+    expect(report.total).toBe(3 + 5 - 18 * 3)
+    // Ensure both private lines are present in the breakdown
+    expect(report.breakdown.filter((b) => b.label.startsWith('Private ·'))).toHaveLength(2)
+  })
+})
+
+describe('computeTargetScore (Solo)', () => {
+  it('sums pip values across all round-track rounds', () => {
+    const track: Die[][] = [
+      [die('red', 3), die('blue', 6)],   // round 1 leftover: 9
+      [],                                 // round 2: 0
+      [die('green', 2)],                  // round 3: 2
+    ]
+    expect(computeTargetScore(track)).toBe(11)
+  })
+  it('empty track returns 0', () => {
+    expect(computeTargetScore([])).toBe(0)
+  })
+})
+
+describe('pickPrivates (Solo)', () => {
+  it('returns N distinct privates', () => {
+    const picks = pickPrivates(2)
+    expect(picks).toHaveLength(2)
+    expect(picks[0].color).not.toBe(picks[1].color)
+  })
+  it('capped at total available (5 colors)', () => {
+    const picks = pickPrivates(10)
+    expect(picks).toHaveLength(5)
   })
 })

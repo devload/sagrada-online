@@ -28,9 +28,10 @@ export function WaitingScene() {
     return () => clearTimeout(t)
   }, [selectedPattern])
 
+  const soloDifficulty = useUI((s) => s.soloDifficulty)
   const beginGame = () => {
     if (!selectedPattern) return
-    startGame(selectedPattern)
+    startGame(selectedPattern, soloDifficulty)
     setScene('game')
   }
 

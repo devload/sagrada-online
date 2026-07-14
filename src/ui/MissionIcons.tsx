@@ -9,11 +9,11 @@ import { COLOR_HEX } from '../game/types'
 
 type IconProps = { size?: number }
 
-const dot = (cx: number, cy: number, color: string, r = 4) => (
-  <circle cx={cx} cy={cy} r={r} fill={color} />
+const dot = (cx: number, cy: number, color: string, r = 4, key?: string | number) => (
+  <circle key={key} cx={cx} cy={cy} r={r} fill={color} />
 )
-const cell = (x: number, y: number, color: string, w = 8, h = 8, opacity = 1) => (
-  <rect x={x} y={y} width={w} height={h} rx={1.5} fill={color} opacity={opacity} />
+const cell = (x: number, y: number, color: string, w = 8, h = 8, opacity = 1, key?: string | number) => (
+  <rect key={key} x={x} y={y} width={w} height={h} rx={1.5} fill={color} opacity={opacity} />
 )
 
 /** All 5 dice colors */
@@ -23,7 +23,7 @@ export function RowColorIcon({ size = 40 }: IconProps) {
   return (
     <svg viewBox="0 0 40 40" width={size} height={size}>
       <rect x={2} y={16} width={36} height={8} rx={2} fill="rgba(255,255,255,0.06)" />
-      {COLORS.map((c, i) => cell(4 + i * 7, 17, COLOR_HEX[c]))}
+      {COLORS.map((c, i) => cell(4 + i * 7, 17, COLOR_HEX[c], 8, 8, 1, c))}
     </svg>
   )
 }
@@ -33,7 +33,7 @@ export function ColumnColorIcon({ size = 40 }: IconProps) {
     <svg viewBox="0 0 40 40" width={size} height={size}>
       <rect x={16} y={2} width={8} height={36} rx={2} fill="rgba(255,255,255,0.06)" />
       {(['red', 'blue', 'green', 'yellow'] as DiceColor[]).map((c, i) =>
-        cell(17, 4 + i * 8.5, COLOR_HEX[c])
+        cell(17, 4 + i * 8.5, COLOR_HEX[c], 8, 8, 1, c)
       )}
     </svg>
   )
@@ -134,7 +134,7 @@ export function ShadeVarietyIcon({ size = 40 }: IconProps) {
 export function ColorVarietyIcon({ size = 40 }: IconProps) {
   return (
     <svg viewBox="0 0 40 40" width={size} height={size}>
-      {COLORS.map((c, i) => dot(8 + (i % 3) * 12, 12 + Math.floor(i / 3) * 12, COLOR_HEX[c], 4.5))}
+      {COLORS.map((c, i) => dot(8 + (i % 3) * 12, 12 + Math.floor(i / 3) * 12, COLOR_HEX[c], 4.5, c))}
     </svg>
   )
 }
@@ -142,7 +142,7 @@ export function ColorVarietyIcon({ size = 40 }: IconProps) {
 export function DiagonalsIcon({ size = 40 }: IconProps) {
   return (
     <svg viewBox="0 0 40 40" width={size} height={size}>
-      {[0, 1, 2, 3].map((i) => cell(4 + i * 8, 4 + i * 8, COLOR_HEX.red, 8, 8))}
+      {[0, 1, 2, 3].map((i) => cell(4 + i * 8, 4 + i * 8, COLOR_HEX.red, 8, 8, 1, i))}
     </svg>
   )
 }

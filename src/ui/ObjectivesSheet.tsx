@@ -12,9 +12,10 @@ export function ObjectivesSheet({ open, onClose }: { open: boolean; onClose: () 
   if (!game) return null
 
   const publics = game.publics
-  const priv = game.private
+  const privates = game.privates?.length ? game.privates : [game.private]
+  const focusedPriv = privates.find((p) => focusId === `private-${p.color}`)
   const focused =
-    focusId === `private-${priv.color}` ? { type: 'private' as const } :
+    focusedPriv ? { type: 'private' as const, obj: focusedPriv } :
     publics.find((p) => p.id === focusId) ? { type: 'public' as const, obj: publics.find((p) => p.id === focusId)! } :
     null
 
@@ -29,7 +30,7 @@ export function ObjectivesSheet({ open, onClose }: { open: boolean; onClose: () 
           {focused.type === 'public' ? (
             <BigPublicCard obj={focused.obj} game={game} />
           ) : (
-            <BigPrivateCard priv={priv} game={game} />
+            <BigPrivateCard priv={focused.obj} game={game} />
           )}
 
           <button
@@ -86,33 +87,41 @@ export function ObjectivesSheet({ open, onClose }: { open: boolean; onClose: () 
           <section>
             <div className="text-xs tracking-widest text-cathedral-gold/70 mb-3">
               ◈ PRIVATE · YOURS ALONE
+              {privates.length > 1 && (
+                <span className="ml-2 text-cathedral-candle/70">· SOLO ({privates.length})</span>
+              )}
             </div>
-            <button
-              onClick={() => openOverlay('objectives', `private-${priv.color}`)}
-              className="w-full rounded-xl p-3 shadow-gold-glow text-left border transition hover:brightness-110"
-              style={{
-                background: `linear-gradient(135deg, ${COLOR_HEX[priv.color]}44, rgba(22,16,41,0.85))`,
-                borderColor: COLOR_HEX[priv.color],
-              }}
-            >
-              <div className="flex items-center gap-3">
-                <div className="w-12 h-16 rounded flex items-center justify-center flex-shrink-0 border border-white/50" style={{ background: COLOR_HEX[priv.color] + '55' }}>
-                  <PrivateIcon color={priv.color} size={40} />
-                </div>
-                <div className="flex-1 min-w-0">
-                  <div className="font-serif text-white text-sm font-semibold mb-0.5">
-                    {priv.name}
+            <div className="space-y-2.5">
+              {privates.map((p) => (
+                <button
+                  key={p.id}
+                  onClick={() => openOverlay('objectives', `private-${p.color}`)}
+                  className="w-full rounded-xl p-3 shadow-gold-glow text-left border transition hover:brightness-110"
+                  style={{
+                    background: `linear-gradient(135deg, ${COLOR_HEX[p.color]}44, rgba(22,16,41,0.85))`,
+                    borderColor: COLOR_HEX[p.color],
+                  }}
+                >
+                  <div className="flex items-center gap-3">
+                    <div className="w-12 h-16 rounded flex items-center justify-center flex-shrink-0 border border-white/50" style={{ background: COLOR_HEX[p.color] + '55' }}>
+                      <PrivateIcon color={p.color} size={40} />
+                    </div>
+                    <div className="flex-1 min-w-0">
+                      <div className="font-serif text-white text-sm font-semibold mb-0.5">
+                        {p.name}
+                      </div>
+                      <div className="text-xs text-white/75 leading-snug line-clamp-2">
+                        {p.description}
+                      </div>
+                      <div className="text-cathedral-candle font-serif text-sm mt-1">
+                        현재 +{p.score(game.window)}pt
+                      </div>
+                    </div>
+                    <div className="text-white/60 text-lg">›</div>
                   </div>
-                  <div className="text-xs text-white/75 leading-snug line-clamp-2">
-                    {priv.description}
-                  </div>
-                  <div className="text-cathedral-candle font-serif text-sm mt-1">
-                    현재 +{priv.score(game.window)}pt
-                  </div>
-                </div>
-                <div className="text-white/60 text-lg">›</div>
-              </div>
-            </button>
+                </button>
+              ))}
+            </div>
           </section>
         </div>
       )}

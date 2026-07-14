@@ -8,6 +8,10 @@ export function ScoreboardScene() {
   const quitGame = useGame((s) => s.quitGame)
 
   const s = game?.finalScore
+  const solo = game?.soloMode ?? false
+  const target = game?.targetScore ?? 0
+  const soloResult = game?.soloResult ?? null
+  const won = soloResult === 'win'
 
   const backToLobby = () => {
     quitGame()
@@ -37,6 +41,16 @@ export function ScoreboardScene() {
   }
 
   const positive = s.total >= 0
+  // In Solo mode the *win* label is authoritative; otherwise fall back to
+  // "positive/negative" total judgement.
+  const banner = solo ? (won ? '👑' : '🕯️') : positive ? '👑' : '🕯️'
+  const bannerText = solo
+    ? won
+      ? '목표를 넘겼어요 — 승리!'
+      : '목표 점수에 미치지 못했어요'
+    : positive
+    ? '아름다운 창문이 완성되었어요'
+    : '조금 더 다듬어보세요'
 
   return (
     <div className="w-full h-full bg-cathedral-radial overflow-y-auto pt-safe pb-safe">
@@ -48,16 +62,34 @@ export function ScoreboardScene() {
           transition={{ duration: 0.8 }}
           className="text-center pt-4"
         >
-          <div className="text-xs tracking-[0.5em] text-cathedral-gold/70 mb-2">MASTERPIECE COMPLETE</div>
-          <div className="text-6xl mb-2">{positive ? '👑' : '🕯️'}</div>
+          <div className="text-xs tracking-[0.5em] text-cathedral-gold/70 mb-2">
+            {solo ? (won ? 'MASTERPIECE COMPLETE' : 'CHALLENGE FAILED') : 'MASTERPIECE COMPLETE'}
+          </div>
+          <div className="text-6xl mb-2">{banner}</div>
           <div className="font-display text-3xl text-gold-shimmer">{game.pattern.name}</div>
           <div className="mt-1 text-cathedral-parchment/70 font-serif italic text-sm">
-            {positive ? '아름다운 창문이 완성되었어요' : '조금 더 다듬어보세요'}
+            {bannerText}
           </div>
           <div className="mt-2 font-serif text-cathedral-candle text-6xl font-bold">
             {s.total}
           </div>
           <div className="text-[10px] tracking-widest text-cathedral-parchment/50">TOTAL POINTS</div>
+
+          {solo && (
+            <div className="mt-3 inline-flex items-center gap-2 rounded-full border border-cathedral-gold/40 bg-cathedral-void/60 px-4 py-1.5">
+              <span className="text-[9px] tracking-widest text-cathedral-gold/80">TARGET</span>
+              <span className="font-serif text-cathedral-parchment text-sm">{target}</span>
+              <span className="text-cathedral-parchment/40">·</span>
+              <span
+                className={
+                  'text-[10px] tracking-widest ' +
+                  (won ? 'text-cathedral-candle' : 'text-dice-red')
+                }
+              >
+                {won ? `WIN (+${s.total - target})` : `LOSS (${s.total - target})`}
+              </span>
+            </div>
+          )}
         </motion.div>
 
         {/* Breakdown */}

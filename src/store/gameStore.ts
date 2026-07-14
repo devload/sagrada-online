@@ -14,8 +14,10 @@ import {
 } from '../game/rules'
 import {
   ALL_PUBLIC_OBJECTIVES,
+  computeTargetScore,
   countEmptyCells,
   pickPrivate,
+  pickPrivates,
   pickPublics,
   score,
   type PrivateObjective,
@@ -23,19 +25,52 @@ import {
   type ScoreReport,
 } from '../game/scoring'
 import { recordFromGameEnd } from '../game/stats'
-import { fluxReroll, grindingStone, grozing, TOOL_DEFS, tokenCost, type ToolCardDef } from '../game/tools'
+import {
+  canPayForTool,
+  DIFFICULTY_TOOL_COUNT,
+  fluxReroll,
+  grindingStone,
+  grozing,
+  TOOL_DEFS,
+  tokenCost,
+  type SoloDifficulty,
+  type ToolCardDef,
+} from '../game/tools'
 import { MOCK_PATTERNS } from '../game/mockData'
 import type { Rng } from '../game/rng'
 
 export const TOTAL_ROUNDS = 10
-/** Solo dice count per round: enough to place 2 and discard 1 = 3 */
-export const DICE_PER_ROUND = 3
+/**
+ * Solo dice count per round.
+ * Official Sagrada Solo rules: 4 dice per round (2 to place, 2 to Round Track).
+ */
+export const DICE_PER_ROUND = 4
+/**
+ * Solo empty-cell penalty per official rules: −3 VP per empty cell.
+ * Standard multiplayer game uses −1.
+ */
+export const SOLO_EMPTY_PENALTY = 3
+/** Number of Public Objectives shown in Solo (official = 2). */
+export const SOLO_PUBLICS = 2
+/** Number of Private Objectives shown in Solo (both face-up, official = 2). */
+export const SOLO_PRIVATES = 2
 
 export type ActiveTool = null | {
   toolId: string
   delta?: 1 | -1
   /** For window-move tools: the source cell that user picked to move */
   moveFrom?: [number, number]
+  /**
+   * For multi-move tools (Lathekin, Tap Wheel): the number of moves the
+   * player has already completed with this activation. When it reaches
+   * `moveCount`, the tool auto-finalizes.
+   */
+  movesDone?: number
+  /**
+   * For Tap Wheel: the color chosen from the round track. All moved dice
+   * must match this color.
+   */
+  moveColor?: import('../game/types').DiceColor
   /** For Lens Cutter: the round track die id user picked to swap */
   swapWithTrackDieId?: string
 }
@@ -51,7 +86,13 @@ export type ActiveGame = {
   draftPool: Die[]
   selectedDieId: string | null
   publics: PublicObjective[]
+  /**
+   * Kept for backward compat: the primary private objective. In Solo mode we
+   * also store the full list (2 privates) in `privates`; `private` is index 0.
+   */
   private: PrivateObjective
+  /** All private objectives (Solo = 2 face-up; standard game = 1). */
+  privates: PrivateObjective[]
   toolsUsed: Record<string, boolean>
   tools: ToolCardDef[]
   activeTool: ActiveTool
@@ -64,6 +105,32 @@ export type ActiveGame = {
    * with round-track dice; they otherwise persist as historical record.
    */
   roundTrack: Die[][]
+  /**
+   * Solo mode Target Score — sum of pip values of every die on the Round
+   * Track. Player must score strictly greater than this to win. Computed
+   * live and finalised at game end.
+   */
+  targetScore: number
+  /**
+   * Solo mode result — set alongside `finalScore`. `null` until game ends.
+   */
+  soloResult: 'win' | 'loss' | null
+  /**
+   * When true, this game uses Solo rules (−3 empty penalty, no favor bonus,
+   * target score, 2 privates). False = standard multiplayer rules.
+   */
+  soloMode: boolean
+  /**
+   * Solo difficulty level (1 = Extreme / 1 tool, 5 = Easy / 5 tools). Only
+   * meaningful when `soloMode === true`.
+   */
+  soloDifficulty: SoloDifficulty
+  /**
+   * Running Pliers pending penalty — when set to true, the player must skip
+   * their FIRST pick of the next round (i.e. only 1 placement allowed).
+   * Consumed on round-start.
+   */
+  runningPliersPending: boolean
 }
 
 /**
@@ -72,7 +139,10 @@ export type ActiveGame = {
  * your private goal color first, then choose a pattern that suits it.
  */
 export type Setup = {
+  /** Legacy single-private (kept for backward compat with the reveal scenes). */
   private: PrivateObjective
+  /** Full list — Solo shows 2 face-up privates. */
+  privates: PrivateObjective[]
   publics: PublicObjective[]
 }
 
@@ -86,7 +156,7 @@ type State = {
   rollSetup: () => void
   clearSetup: () => void
 
-  startGame: (patternId?: string) => void
+  startGame: (patternId?: string, difficulty?: SoloDifficulty) => void
   quitGame: () => void
   selectDie: (dieId: string | null) => void
   placeSelectedAt: (row: number, col: number) => PlacementResult
@@ -95,18 +165,34 @@ type State = {
   cancelTool: () => void
   applyTool: (payload?: unknown) => void
   finishRound: () => void
+  /**
+   * For Tap Wheel: pick the round-track color that the moves will follow.
+   * Called from the UI once the player taps a track die. No-op if the
+   * active tool isn't Tap Wheel.
+   */
+  setActiveMoveColor: (color: import('../game/types').DiceColor) => void
+  /**
+   * Finalize a multi-move tool early (Lathekin / Tap Wheel), consuming
+   * payment and clearing activeTool. Used when the player chooses to move
+   * only 1 die of the 2 allowed.
+   */
+  finalizeActiveTool: () => void
 }
 
 function newRound(game: ActiveGame, rng: Rng = Math.random): ActiveGame {
+  // Running Pliers pending: player skips first pick of this round → only 1
+  // placement instead of 2. Consume the pending flag.
+  const nextLimit = game.runningPliersPending ? 1 : 2
   return {
     ...game,
     round: game.round + 1,
     placedThisRound: 0,
-    placementLimit: 2, // Reset — Running Pliers only affects the round it's used in
+    placementLimit: nextLimit,
     draftPool: rollDice(DICE_PER_ROUND, undefined, rng),
     selectedDieId: null,
     activeTool: null,
     lastError: null,
+    runningPliersPending: false,
   }
 }
 
@@ -116,23 +202,32 @@ export const useGame = create<State>()(
     game: null,
 
     rollSetup: () => {
-      const priv = pickPrivate()
-      const publics = pickPublics(3)
-      set({ setup: { private: priv, publics } })
+      // Solo rules: 2 face-up privates + 2 face-up publics.
+      const privates = pickPrivates(SOLO_PRIVATES)
+      const publics = pickPublics(SOLO_PUBLICS)
+      set({ setup: { private: privates[0], privates, publics } })
     },
 
     clearSetup: () => set({ setup: null }),
 
-    startGame: (patternId) => {
+    startGame: (patternId, difficulty) => {
       const pattern =
         (patternId && MOCK_PATTERNS.find((p) => p.id === patternId)) || MOCK_PATTERNS[0]
       const setup = get().setup
-      const chosenPublics = setup?.publics ?? pickPublics(3)
-      const priv = setup?.private ?? pickPrivate()
-      // Pick 3 random tools out of the full 12
+      const chosenPublics = setup?.publics ?? pickPublics(SOLO_PUBLICS)
+      const chosenPrivates =
+        setup?.privates && setup.privates.length > 0
+          ? setup.privates
+          : setup?.private
+          ? [setup.private]
+          : pickPrivates(SOLO_PRIVATES)
+      const priv = chosenPrivates[0] ?? pickPrivate()
+      // Solo tool count from difficulty (1..5). Default = 3 (Medium).
+      const soloDifficulty: SoloDifficulty = difficulty ?? 3
+      const toolCount = DIFFICULTY_TOOL_COUNT[soloDifficulty]
       const allToolIds = Object.keys(TOOL_DEFS)
       const shuffled = [...allToolIds].sort(() => Math.random() - 0.5)
-      const toolIds = shuffled.slice(0, 3)
+      const toolIds = shuffled.slice(0, toolCount)
       const game: ActiveGame = {
         pattern,
         window: emptyWindow(),
@@ -144,12 +239,18 @@ export const useGame = create<State>()(
         selectedDieId: null,
         publics: chosenPublics,
         private: priv,
+        privates: chosenPrivates,
         tools: toolIds.map((id) => TOOL_DEFS[id]),
         toolsUsed: Object.fromEntries(toolIds.map((id) => [id, false])) as Record<string, boolean>,
         activeTool: null,
         lastError: null,
         finalScore: null,
         roundTrack: [],
+        targetScore: 0,
+        soloResult: null,
+        soloMode: true,
+        soloDifficulty,
+        runningPliersPending: false,
       }
       set({ game, setup: null })
     },
@@ -169,7 +270,7 @@ export const useGame = create<State>()(
       const die = g.draftPool.find((d) => d.id === g.selectedDieId)
       if (!die) return []
       const opts: PlaceOptions = g.activeTool?.toolId === 'corkStraight'
-        ? { ignoreAdjacency: true, skipMustTouch: true }
+        ? { requireNotAdjacent: true }
         : {}
       return legalCells(g.window, g.pattern, die, opts)
     },
@@ -184,7 +285,7 @@ export const useGame = create<State>()(
       if (!die) return { ok: false, reason: 'occupied', message: '선택한 주사위를 찾을 수 없어요' }
 
       const opts: PlaceOptions = g.activeTool?.toolId === 'corkStraight'
-        ? { ignoreAdjacency: true, skipMustTouch: true }
+        ? { requireNotAdjacent: true }
         : {}
 
       const result = canPlace(g.window, g.pattern, row, col, die, opts)
@@ -213,15 +314,36 @@ export const useGame = create<State>()(
     activateTool: (toolId) =>
       set((s) => {
         if (!s.game) return
-        if (s.game.toolsUsed[toolId] && s.game.favorTokens < 2) {
-          s.game.lastError = 'Favor Token이 부족해요 (2 필요)'
-          return
+        const tool = TOOL_DEFS[toolId]
+        if (!tool) return
+
+        // Solo mode: each tool is single-use (removed after use) AND requires
+        // a matching-color die in the draft pool to pay the cost.
+        if (s.game.soloMode) {
+          if (s.game.toolsUsed[toolId]) {
+            s.game.lastError = '이 도구는 이미 사용했어요 (Solo · 1회만)'
+            return
+          }
+          if (!canPayForTool(s.game.draftPool, tool)) {
+            s.game.lastError = `${tool.color} 주사위가 있어야 이 도구를 쓸 수 있어요`
+            return
+          }
+          // Running Pliers has a strict timing: must be used AFTER first pick
+          if (tool.runningPliersMode && s.game.placedThisRound !== 1) {
+            s.game.lastError = 'Running Pliers는 이번 라운드 첫 픽 직후에만 사용해요'
+            return
+          }
+        } else {
+          if (s.game.toolsUsed[toolId] && s.game.favorTokens < 2) {
+            s.game.lastError = 'Favor Token이 부족해요 (2 필요)'
+            return
+          }
+          if (!s.game.toolsUsed[toolId] && s.game.favorTokens < 1) {
+            s.game.lastError = 'Favor Token이 부족해요 (1 필요)'
+            return
+          }
         }
-        if (!s.game.toolsUsed[toolId] && s.game.favorTokens < 1) {
-          s.game.lastError = 'Favor Token이 부족해요 (1 필요)'
-          return
-        }
-        s.game.activeTool = { toolId }
+        s.game.activeTool = { toolId, movesDone: 0 }
         s.game.lastError = null
       }),
 
@@ -231,10 +353,43 @@ export const useGame = create<State>()(
         s.game.activeTool = null
       }),
 
+    setActiveMoveColor: (color) =>
+      set((s) => {
+        if (!s.game?.activeTool) return
+        s.game.activeTool.moveColor = color
+      }),
+
+    finalizeActiveTool: () =>
+      set((s) => {
+        if (!s.game?.activeTool) return
+        const tid = s.game.activeTool.toolId
+        const toolDef = TOOL_DEFS[tid]
+        // Must have at least one move done to finalize (else use cancel)
+        const done = s.game.activeTool.movesDone ?? 0
+        if (done === 0) {
+          s.game.activeTool = null
+          return
+        }
+        if (s.game.soloMode) {
+          const idx = s.game.draftPool.findIndex((d) => d.color === toolDef.color)
+          if (idx >= 0) {
+            const paying = s.game.draftPool[idx]
+            if (s.game.selectedDieId === paying.id) s.game.selectedDieId = null
+            s.game.draftPool.splice(idx, 1)
+          }
+        } else {
+          const cost = tokenCost(s.game.toolsUsed[tid])
+          s.game.favorTokens -= cost
+        }
+        s.game.toolsUsed[tid] = true
+        s.game.activeTool = null
+      }),
+
     applyTool: (payload) => {
       const g = get().game
       if (!g || !g.activeTool) return
       const tid = g.activeTool.toolId
+      const toolDef = TOOL_DEFS[tid]
       const cost = tokenCost(g.toolsUsed[tid])
 
       set((s) => {
@@ -243,6 +398,9 @@ export const useGame = create<State>()(
           ? s.game.draftPool.find((d) => d.id === s.game!.selectedDieId)
           : null
         let ok = false
+        // For multi-move tools we may finalize across several apply calls.
+        // Default = tool finalizes on this apply.
+        let finalize = true
 
         switch (tid) {
           case 'grozing': {
@@ -282,8 +440,15 @@ export const useGame = create<State>()(
             break
           }
           case 'runningPliers': {
-            // Grant one extra placement this round
+            // Official: only usable right after your FIRST pick of the round.
+            // Grant one extra placement THIS round, then set a pending flag
+            // so the FIRST pick of the NEXT round is skipped.
+            if (s.game.placedThisRound !== 1) {
+              s.game.lastError = 'Running Pliers는 첫 픽 직후에만 사용해요'
+              break
+            }
             s.game.placementLimit = s.game.placementLimit + 1
+            s.game.runningPliersPending = true
             ok = true
             break
           }
@@ -320,21 +485,37 @@ export const useGame = create<State>()(
             const srcDie = s.game.window[from[0]][from[1]]
             if (!srcDie) break
 
-            // Build tool-specific bypass options
-            const toolDef = TOOL_DEFS[tid]
+            // Tap Wheel: enforce same-color constraint (chosen at activation).
+            if (tid === 'tapWheel') {
+              const chosen = s.game.activeTool?.moveColor
+              if (chosen && srcDie.color !== chosen) {
+                s.game.lastError = `Tap Wheel: ${chosen} 주사위만 옮길 수 있어요`
+                break
+              }
+            }
+
             const opts: PlaceOptions = {
               ignoreColor: toolDef.moveIgnoreColor,
               ignoreValue: toolDef.moveIgnoreValue,
-              // Adjacency + must-touch still apply for these tools
             }
 
-            // Temporarily remove src to check placement at dest
             const withoutSrc = withDieRemoved(s.game.window, from[0], from[1])
             const result = canPlace(withoutSrc, s.game.pattern, to[0], to[1], srcDie, opts)
             if (result.ok) {
-              const withDest = withDiePlaced(withoutSrc, to[0], to[1], srcDie)
-              s.game.window = withDest
+              s.game.window = withDiePlaced(withoutSrc, to[0], to[1], srcDie)
               ok = true
+
+              // Multi-move: Lathekin & Tap Wheel allow up to 2 moves per use.
+              const maxMoves = toolDef.moveCount ?? 1
+              const done = (s.game.activeTool?.movesDone ?? 0) + 1
+              if (done < maxMoves) {
+                finalize = false
+                if (s.game.activeTool) {
+                  s.game.activeTool.movesDone = done
+                  // Reset moveFrom so UI prompts for the next source cell
+                  s.game.activeTool.moveFrom = undefined
+                }
+              }
             } else {
               s.game.lastError = result.message
             }
@@ -346,8 +527,24 @@ export const useGame = create<State>()(
           }
         }
 
-        if (ok) {
-          s.game.favorTokens -= cost
+        if (ok && finalize) {
+          if (s.game.soloMode) {
+            // Solo payment: remove one draft-pool die whose color matches the
+            // tool's top-left color band. The die + card are gone for good.
+            const idx = s.game.draftPool.findIndex((d) => d.color === toolDef.color)
+            if (idx >= 0) {
+              const paying = s.game.draftPool[idx]
+              // If the player also had that die "selected" (e.g., for grozing
+              // on a red die and the tool color is also red), clear selection
+              // when the selected die was consumed as payment.
+              if (s.game.selectedDieId === paying.id) {
+                s.game.selectedDieId = null
+              }
+              s.game.draftPool.splice(idx, 1)
+            }
+          } else {
+            s.game.favorTokens -= cost
+          }
           s.game.toolsUsed[tid] = true
           s.game.activeTool = null
         }
@@ -365,24 +562,47 @@ export const useGame = create<State>()(
         // Ensure roundTrack has entries for previous rounds
         while (s.game.roundTrack.length < s.game.round) s.game.roundTrack.push([])
         s.game.roundTrack[s.game.round - 1] = leftover
+        // Update live target score (Solo win condition).
+        s.game.targetScore = computeTargetScore(s.game.roundTrack)
       })
 
-      if (g.round >= TOTAL_ROUNDS) {
-        const finalScore = score(g.window, g.publics, g.private, g.favorTokens)
+      // Refresh snapshot after target score update
+      const gAfter = get().game!
+      if (gAfter.round >= TOTAL_ROUNDS) {
+        const solo = gAfter.soloMode
+        const finalScore = score(
+          gAfter.window,
+          gAfter.publics,
+          gAfter.private,
+          gAfter.favorTokens,
+          solo
+            ? {
+                emptyCellPenalty: SOLO_EMPTY_PENALTY,
+                includeFavorBonus: false,
+                privates: gAfter.privates,
+              }
+            : {}
+        )
+        const target = computeTargetScore(gAfter.roundTrack)
+        const soloResult: 'win' | 'loss' | null = solo
+          ? finalScore.total > target ? 'win' : 'loss'
+          : null
         set((s) => {
           if (!s.game) return
           s.game.finalScore = finalScore
+          s.game.targetScore = target
+          s.game.soloResult = soloResult
           s.game.draftPool = []
         })
         // Persist the completed game to stats
         try {
           recordFromGameEnd({
             finalScore: finalScore.total,
-            pattern: g.pattern,
-            publicIds: g.publics.map((p) => p.id),
-            privateColor: g.private.color,
-            favorTokensRemaining: g.favorTokens,
-            emptyCells: countEmptyCells(g.window),
+            pattern: gAfter.pattern,
+            publicIds: gAfter.publics.map((p) => p.id),
+            privateColor: gAfter.private.color,
+            favorTokensRemaining: gAfter.favorTokens,
+            emptyCells: countEmptyCells(gAfter.window),
           })
         } catch {}
         return

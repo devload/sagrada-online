@@ -11,8 +11,10 @@ import { OnboardingCards } from '../ui/OnboardingCards'
 import { RulesSheet } from '../ui/RulesSheet'
 import { PWAInstallSheet } from '../ui/PWAInstallSheet'
 import { StatsSheet } from '../ui/StatsSheet'
+import { DifficultySheet } from '../ui/DifficultySheet'
 import { usePWA } from '../hooks/usePWA'
 import type { DiceColor, DiceValue } from '../game/types'
+import { DIFFICULTY_LABEL } from '../game/tools'
 
 const HERO_DICE: { color: DiceColor; value: DiceValue; position: [number, number, number] }[] = [
   { color: 'red', value: 3, position: [-2.4, 0.3, -0.5] },
@@ -48,10 +50,12 @@ export function LobbyScene() {
   const [rulesOpen, setRulesOpen] = useState(false)
   const [installOpen, setInstallOpen] = useState(false)
   const [statsOpen, setStatsOpen] = useState(false)
+  const [difficultyOpen, setDifficultyOpen] = useState(false)
   const { isInstalled, canInstall, platform } = usePWA()
   const showInstallBanner = !isInstalled && (canInstall || platform === 'ios' || platform === 'android' || platform === 'desktop')
 
   const rollSetup = useGame((s) => s.rollSetup)
+  const soloDifficulty = useUI((s) => s.soloDifficulty)
   const startSolo = () => {
     setMode('solo')
     rollSetup()
@@ -130,10 +134,24 @@ export function LobbyScene() {
             <MenuButton
               icon="🎲"
               title="PLAY SOLO"
-              subtitle="혼자 퍼즐 · 최고 점수 도전"
+              subtitle={`혼자 퍼즐 · 난이도 · ${DIFFICULTY_LABEL[soloDifficulty]} · Tools ${soloDifficulty}`}
               onClick={startSolo}
               primary
             />
+
+            <button
+              onClick={() => setDifficultyOpen(true)}
+              className="w-full rounded-xl px-4 py-2.5 flex items-center gap-3 text-left border border-cathedral-gold/30 text-cathedral-parchment/85 hover:bg-cathedral-gold/10 transition"
+            >
+              <div className="text-xl text-cathedral-gold">⚙</div>
+              <div className="flex-1">
+                <div className="font-serif tracking-wider text-sm">DIFFICULTY</div>
+                <div className="text-[10px] text-cathedral-parchment/60 mt-0.5">
+                  {DIFFICULTY_LABEL[soloDifficulty]} · 도구 카드 {soloDifficulty}장
+                </div>
+              </div>
+              <div className="text-lg opacity-60">›</div>
+            </button>
 
             <div className="flex items-center justify-center gap-3 pt-1 text-xs text-cathedral-parchment/50 flex-wrap">
               <button onClick={() => setRulesOpen(true)} className="hover:text-cathedral-gold transition">
@@ -164,6 +182,7 @@ export function LobbyScene() {
       <RulesSheet open={rulesOpen} onClose={() => setRulesOpen(false)} />
       <PWAInstallSheet open={installOpen} onClose={() => setInstallOpen(false)} />
       <StatsSheet open={statsOpen} onClose={() => setStatsOpen(false)} />
+      <DifficultySheet open={difficultyOpen} onClose={() => setDifficultyOpen(false)} />
     </div>
   )
 }

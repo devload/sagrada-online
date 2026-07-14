@@ -18,6 +18,12 @@ export type PlaceOptions = {
   ignoreAdjacency?: boolean
   /** Skip the "must touch existing die" rule (used when moving) */
   skipMustTouch?: boolean
+  /**
+   * Cork-backed Straightedge — the die MUST NOT be adjacent (ortho or
+   * diagonal) to any other die. Overrides the usual "must touch existing"
+   * requirement, but pattern color/value restrictions still apply.
+   */
+  requireNotAdjacent?: boolean
 }
 
 export type PlacementError =
@@ -29,6 +35,7 @@ export type PlacementError =
   | 'adjacent-same-value'
   | 'first-must-be-edge'
   | 'must-touch-existing'
+  | 'must-not-be-adjacent'
 
 export type PlacementResult =
   | { ok: true }
@@ -43,6 +50,7 @@ const REASON_MESSAGES: Record<PlacementError, string> = {
   'adjacent-same-value': '인접한 칸에 같은 숫자가 있어요',
   'first-must-be-edge': '첫 주사위는 창문 가장자리에만 놓을 수 있어요',
   'must-touch-existing': '이미 놓인 주사위와 상하좌우/대각선으로 붙어야 해요',
+  'must-not-be-adjacent': 'Cork-backed Straightedge는 다른 주사위와 붙지 않은 칸에만 놓을 수 있어요',
 }
 
 const fail = (reason: PlacementError): PlacementResult => ({
@@ -126,6 +134,15 @@ export function canPlace(
       if (other.color === die.color) return fail('adjacent-same-color')
       if (other.value === die.value) return fail('adjacent-same-value')
     }
+  }
+
+  // Cork-backed Straightedge: die must NOT be adjacent (ortho or diagonal)
+  // to any other die. Replaces the usual touch requirement.
+  if (opts.requireNotAdjacent) {
+    for (const [r, c] of allNeighbours(row, col)) {
+      if (window[r][c]) return fail('must-not-be-adjacent')
+    }
+    return { ok: true }
   }
 
   // First die: must be on edge/corner

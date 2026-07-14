@@ -24,3 +24,10 @@ dist-ssr
 *.sw?
 .vercel
 .partykit
+
+# E2E artifacts (Playwright)
+e2e/screenshots/
+e2e/report/
+e2e/report.json
+test-results/
+playwright-report/

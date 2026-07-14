@@ -1,5 +1,5 @@
 import { COLS, ROWS } from './rules'
-import type { DiceColor, DiceValue, PlacedDie } from './types'
+import type { DiceColor, DiceValue, Die, PlacedDie } from './types'
 
 export type ScoreLineItem = {
   label: string
@@ -204,29 +204,75 @@ export function countEmptyCells(window: PlacedDie[][]): number {
   return n
 }
 
+export type ScoreOptions = {
+  /**
+   * Points lost per empty cell. Standard = 1; Solo = 3.
+   * Defaults to 1 (multiplayer rules).
+   */
+  emptyCellPenalty?: number
+  /**
+   * When true, each remaining favor token adds +1 VP (standard game).
+   * Solo rules do NOT use favor tokens, so this should be false there.
+   */
+  includeFavorBonus?: boolean
+  /**
+   * When provided, private objectives array (Solo uses TWO privates).
+   * If both `privates` and legacy single `priv` are given, `privates` wins.
+   */
+  privates?: PrivateObjective[]
+}
+
 export function score(
   window: PlacedDie[][],
   publics: PublicObjective[],
   priv: PrivateObjective,
-  favorTokens: number
+  favorTokens: number,
+  options: ScoreOptions = {}
 ): ScoreReport {
+  const { emptyCellPenalty = 1, includeFavorBonus = true, privates } = options
+
   const breakdown: ScoreLineItem[] = []
   for (const obj of publics) {
     const c = obj.count(window)
     if (c > 0) breakdown.push({ label: obj.name, value: c * obj.pointsPer, fromObjective: obj.id })
     else breakdown.push({ label: obj.name, value: 0, fromObjective: obj.id })
   }
-  breakdown.push({
-    label: `Private · ${priv.name}`,
-    value: priv.score(window),
-    fromObjective: priv.id,
-  })
-  breakdown.push({ label: 'Favor Tokens', value: favorTokens })
+
+  // Private objectives — Solo has TWO (both scored). Standard has one.
+  const privList = privates && privates.length > 0 ? privates : [priv]
+  for (const p of privList) {
+    breakdown.push({
+      label: `Private · ${p.name}`,
+      value: p.score(window),
+      fromObjective: p.id,
+    })
+  }
+
+  if (includeFavorBonus) {
+    breakdown.push({ label: 'Favor Tokens', value: favorTokens })
+  }
   const empties = countEmptyCells(window)
-  breakdown.push({ label: 'Empty Cells', value: -empties })
+  breakdown.push({
+    label: emptyCellPenalty === 3 ? 'Empty Cells (×3)' : 'Empty Cells',
+    value: -empties * emptyCellPenalty,
+  })
 
   const total = breakdown.reduce((s, l) => s + l.value, 0)
   return { total, breakdown }
+}
+
+/**
+ * Solo Target Score — sum of the pip values of every die on the Round Track.
+ * If a round is empty (no leftover dice), the official rule uses a Score
+ * Marker as a placeholder worth 0 pips; we simply skip empty rounds.
+ * Player must score STRICTLY MORE than this value to win.
+ */
+export function computeTargetScore(roundTrack: Die[][]): number {
+  let total = 0
+  for (const roundDice of roundTrack) {
+    for (const d of roundDice) total += d.value
+  }
+  return total
 }
 
 /** Pick N random public objectives (deterministic if rng provided) */
@@ -242,4 +288,15 @@ export function pickPublics(n = 3, rng: () => number = Math.random): PublicObjec
 
 export function pickPrivate(rng: () => number = Math.random): PrivateObjective {
   return PRIVATE_OBJECTIVES[Math.floor(rng() * PRIVATE_OBJECTIVES.length)]
+}
+
+/** Pick N distinct private objectives (Solo uses 2, both face-up). */
+export function pickPrivates(n = 2, rng: () => number = Math.random): PrivateObjective[] {
+  const pool = [...PRIVATE_OBJECTIVES]
+  const out: PrivateObjective[] = []
+  for (let i = 0; i < n && pool.length > 0; i++) {
+    const idx = Math.floor(rng() * pool.length)
+    out.push(pool.splice(idx, 1)[0])
+  }
+  return out
 }

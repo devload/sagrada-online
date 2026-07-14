@@ -120,7 +120,7 @@ export function GameScene() {
 
   // Detect "no die can be placed anywhere" — enables PASS ROUND button
   const noValidPlacement = (() => {
-    if (game.placedThisRound >= 2) return false
+    if (game.placedThisRound >= game.placementLimit) return false
     if (game.draftPool.length === 0) return false
     // If any die in tray has at least one legal cell, placement IS possible
     for (const die of game.draftPool) {
@@ -187,9 +187,25 @@ export function GameScene() {
           <div className="glass-panel rounded-lg px-3 py-1.5">
             <div className="text-[9px] tracking-widest text-cathedral-gold/70">PLACE</div>
             <div className="font-serif text-cathedral-parchment text-sm leading-none mt-0.5">
-              {game.placedThisRound} / 2
+              {game.placedThisRound} / {game.placementLimit}
             </div>
+            {game.runningPliersPending && (
+              <div className="text-[8px] tracking-widest text-dice-red mt-0.5">
+                NEXT · SKIP 1
+              </div>
+            )}
           </div>
+          {game.soloMode && game.targetScore > 0 && (
+            <div
+              className="glass-panel rounded-lg px-3 py-1.5"
+              title="Solo Target Score — score more than this to win"
+            >
+              <div className="text-[9px] tracking-widest text-cathedral-gold/70">TARGET</div>
+              <div className="font-serif text-cathedral-candle text-sm leading-none mt-0.5">
+                {game.targetScore}
+              </div>
+            </div>
+          )}
         </div>
 
         <div className="flex items-center gap-1.5">
@@ -264,18 +280,52 @@ export function GameScene() {
         />
 
         {/* Active window-move tool banner */}
-        {(game.activeTool && TOOL_DEFS[game.activeTool.toolId]?.moveMode === 'window') && (
-          <div className="mx-3 rounded-md bg-cathedral-candle/15 border border-cathedral-candle/50 px-3 py-1.5 text-[10px] text-cathedral-parchment/85 font-serif text-center">
-            <b className="text-cathedral-candle">이동 도구 활성</b> ·{' '}
-            {!game.activeTool.moveFrom
-              ? '옮길 주사위를 창문에서 탭'
-              : '이동할 목적지 칸을 탭'}
-          </div>
-        )}
+        {(game.activeTool && TOOL_DEFS[game.activeTool.toolId]?.moveMode === 'window') && (() => {
+          const def = TOOL_DEFS[game.activeTool!.toolId]
+          const maxMoves = def.moveCount ?? 1
+          const done = game.activeTool!.movesDone ?? 0
+          const isMulti = maxMoves > 1
+          const isTapWheel = game.activeTool!.toolId === 'tapWheel'
+          const needsColor = isTapWheel && !game.activeTool!.moveColor
+          return (
+            <div className="mx-3 rounded-md bg-cathedral-candle/15 border border-cathedral-candle/50 px-3 py-1.5 text-[10px] text-cathedral-parchment/85 font-serif text-center flex items-center justify-between gap-2">
+              <div className="flex-1 text-center">
+                <b className="text-cathedral-candle">{def.name}</b>
+                {isMulti && <> · <span className="text-cathedral-gold">{done}/{maxMoves} 이동</span></>}
+                {isTapWheel && game.activeTool!.moveColor && (
+                  <> · <span style={{ color: COLOR_HEX[game.activeTool!.moveColor] }}>{game.activeTool!.moveColor} 전용</span></>
+                )}
+                {' · '}
+                {needsColor
+                  ? '먼저 도구 시트에서 색을 골라주세요'
+                  : !game.activeTool!.moveFrom
+                    ? '옮길 주사위를 창문에서 탭'
+                    : '이동할 목적지 칸을 탭'}
+              </div>
+              <div className="flex items-center gap-1.5 shrink-0">
+                {isMulti && done >= 1 && (
+                  <button
+                    onClick={() => useGame.getState().finalizeActiveTool()}
+                    className="text-[10px] tracking-widest px-2 py-1 rounded border border-cathedral-candle/60 text-cathedral-candle hover:bg-cathedral-candle/10"
+                  >
+                    ✓ DONE
+                  </button>
+                )}
+                <button
+                  onClick={() => useGame.getState().cancelTool()}
+                  aria-label="Cancel tool"
+                  className="text-[10px] tracking-widest px-2 py-1 rounded border border-cathedral-parchment/40 text-cathedral-parchment/70 hover:bg-cathedral-parchment/10"
+                >
+                  ✕ CANCEL
+                </button>
+              </div>
+            </div>
+          )
+        })()}
 
         {/* Instruction — compact */}
         <div className="text-center text-[11px] text-cathedral-parchment/70 font-serif px-2 min-h-[16px] flex items-center gap-2">
-          {game.placedThisRound >= 2 ? (
+          {game.placedThisRound >= game.placementLimit ? (
             <span>다음 라운드 준비 중…</span>
           ) : noValidPlacement ? (
             <button
